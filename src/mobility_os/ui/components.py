@@ -106,11 +106,18 @@ def render_status_bar(items: Iterable[tuple]) -> None:
     st.markdown(f'<div class="qdt-status">{"".join(chips)}</div>', unsafe_allow_html=True)
 
 
-def render_kpi_row(items: Iterable[tuple[str, Any]]) -> None:
+def render_kpi_row(items: Iterable[tuple]) -> None:
     items = list(items)
     cols = st.columns(len(items)) if items else []
-    for col, (label, value) in zip(cols, items):
-        col.metric(label, value)
+    for col, item in zip(cols, items):
+        if len(item) == 2:
+            label, value = item
+            delta = None
+        elif len(item) == 3:
+            label, value, delta = item
+        else:
+            continue
+        col.metric(label, value, delta)
 
 
 def render_summary_table(rows: list[tuple[str, Any]], title: str | None = None) -> None:
