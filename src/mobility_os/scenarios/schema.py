@@ -27,3 +27,5 @@ class ScenarioSpec(BaseModel):
     shocks: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
     note: str = ""
     twin_hotspots: Dict[str, str] = Field(default_factory=dict)
+    hotspot_dependencies: Dict[str, List[str]] = Field(default_factory=dict)
+    compound_events: List[List[str]] = Field(default_factory=list)

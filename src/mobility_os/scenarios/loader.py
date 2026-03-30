@@ -49,6 +49,8 @@ def _spec_from_base(sid: str, payload: dict, meta: dict) -> ScenarioSpec:
         shocks=payload.get("shocks", {}),
         note=meta.get("note", ""),
         twin_hotspots=meta.get("twin_hotspots", {}),
+        hotspot_dependencies=meta.get("hotspot_dependencies", {}),
+        compound_events=meta.get("compound_events", []),
     )
 
 
@@ -67,6 +69,8 @@ def _spec_from_high(item: dict, meta: dict) -> ScenarioSpec:
         kpis=item.get("kpis", []),
         note=meta.get("note", item.get("operational_goal", "")),
         twin_hotspots=meta.get("twin_hotspots", {}),
+        hotspot_dependencies=meta.get("hotspot_dependencies", {}),
+        compound_events=meta.get("compound_events", []),
     )
 
 

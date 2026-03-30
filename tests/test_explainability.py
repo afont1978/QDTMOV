@@ -19,6 +19,10 @@ def test_explainability_helpers_build_expected_outputs():
         "objective_breakdown_json": '{"risk_penalty": 7.5, "delay_penalty": 4.0}',
         "result_json": '{"backend": {"provider": "SIM_QPU", "backend_id": "sim-mobility-qpu", "queue_ms": 320, "exec_ms": 180}}',
         "qre_json": '{"mode": "traffic", "scenario": "corridor_congestion"}',
+        "hotspot_count": 3,
+        "network_cascade_score": 0.57,
+        "active_hotspots_json": '[{"name":"Plaça d\'Espanya","severity":0.82,"depth":0,"impacted_subsystems":["traffic","gateway"]}]',
+        "impact_chain_json": '[{"from_hotspot":"Plaça d\'Espanya","to_hotspot":"Plaça de Catalunya / Ronda Universitat","transferred_severity":0.61,"depth":1,"rationale":"incident propagated"}]',
     }
     explanation = explain_route_decision(row)
     breakdown = objective_breakdown_df(row)

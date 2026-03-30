@@ -22,6 +22,7 @@ from mobility_os.domain.twins import (
 from mobility_os.io.hotspot_repo import load_hotspots
 from mobility_os.orchestration.hybrid import MobilityHybridOrchestrator
 from mobility_os.io.run_store import RunStore
+from mobility_os.runtime.propagation import build_propagation_view
 from mobility_os.scenarios.engine import ScenarioEngine
 from mobility_os.scenarios.loader import load_scenarios
 
@@ -114,12 +115,28 @@ class MobilityRuntime:
         risk = self.twins["risk_hotspot"]
         spec = self.scenarios[self.scenario]
         primary_name = spec.primary_hotspots[0] if spec.primary_hotspots else next(iter(self.hotspots))
-        primary = self.hotspots.get(primary_name)
         active_event = ctx.active_events[0].event_type if ctx.active_events else None
         network_speed_index = float(np.clip(corridor.avg_speed_kmh / 32.0, 0.0, 1.2))
         corridor_reliability_index = float(np.clip(1.0 / corridor.travel_time_index, 0.0, 1.2))
         curb_pressure_index = float(np.clip(0.55 * curb.occupancy_rate + 0.45 * curb.illegal_occupancy_rate, 0.0, 1.0))
         gateway_delay_index = float(np.clip(0.18 + 0.65 * ctx.gateway_ops["surge_factor"] + 0.12 * corridor.queue_spillback_risk, 0.0, 1.0))
+        active_hotspots, impact_chain, cascade_score = build_propagation_view(
+            spec,
+            self.hotspots,
+            primary_name,
+            active_event,
+            {
+                "network_speed_index": network_speed_index,
+                "corridor_reliability_index": corridor_reliability_index,
+                "bus_bunching_index": bus.bunching_index,
+                "curb_pressure_index": curb_pressure_index,
+                "risk_score": risk.risk_score,
+                "gateway_delay_index": gateway_delay_index,
+            },
+        )
+        if active_hotspots:
+            primary_name = active_hotspots[0]["name"]
+        primary = self.hotspots.get(primary_name)
         return {
             "ts": utc_now_iso(),
             "mode": ctx.mode,
@@ -144,6 +161,10 @@ class MobilityRuntime:
             "primary_hotspot_name": primary_name,
             "primary_hotspot_lat": primary.lat if primary else 41.3851,
             "primary_hotspot_lon": primary.lon if primary else 2.1734,
+            "hotspot_count": len(active_hotspots),
+            "network_cascade_score": cascade_score,
+            "active_hotspots_json": json.dumps(active_hotspots, ensure_ascii=False),
+            "impact_chain_json": json.dumps(impact_chain, ensure_ascii=False),
         }
 
     def build_problem(self, state: Dict[str, Any], ctx) -> MobilityDispatchProblem:
@@ -159,6 +180,8 @@ class MobilityRuntime:
             coupling_bonus += 0.9
         if state["curb_pressure_index"] > 0.55:
             coupling_bonus += 0.8
+        coupling_bonus += 1.1 * float(state.get("network_cascade_score", 0.0) or 0.0)
+        coupling_bonus += 0.18 * max(int(state.get("hotspot_count", 1) or 1) - 1, 0)
         mode_bonus = {"traffic": 0.7, "safety": 0.4, "logistics": 1.0, "gateway": 1.0, "event": 1.2, "transit": 0.9}[ctx.mode]
         complexity = discrete_vars * 0.55 + continuous_vars * 0.15 + event_bonus + coupling_bonus + mode_bonus
         discrete_ratio = discrete_vars / (discrete_vars + continuous_vars)
@@ -184,6 +207,8 @@ class MobilityRuntime:
             "curb_pressure_index": state["curb_pressure_index"],
             "gateway_delay_index": state["gateway_delay_index"],
             "primary_hotspot_name": state["primary_hotspot_name"],
+            "hotspot_count": state.get("hotspot_count", 1),
+            "network_cascade_score": state.get("network_cascade_score", 0.0),
         }
         return MobilityDispatchProblem(
             step_id=self.step_id,
@@ -259,6 +284,10 @@ class MobilityRuntime:
             primary_hotspot_lat=state["primary_hotspot_lat"],
             primary_hotspot_lon=state["primary_hotspot_lon"],
             scenario_note=state["scenario_note"],
+            hotspot_count=int(state.get("hotspot_count", 1) or 1),
+            network_cascade_score=float(state.get("network_cascade_score", 0.0) or 0.0),
+            active_hotspots_json=state.get("active_hotspots_json"),
+            impact_chain_json=state.get("impact_chain_json"),
             qre_json=decision["qre_json"],
             result_json=decision["result_json"],
             dispatch_json=json.dumps(decision["dispatch"], ensure_ascii=False),

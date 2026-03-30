@@ -129,6 +129,10 @@ class MobilityExecRecord:
     primary_hotspot_lat: float
     primary_hotspot_lon: float
     scenario_note: str
+    hotspot_count: int = 1
+    network_cascade_score: float = 0.0
+    active_hotspots_json: Optional[str] = None
+    impact_chain_json: Optional[str] = None
     qre_json: Optional[str] = None
     result_json: Optional[str] = None
     dispatch_json: Optional[str] = None

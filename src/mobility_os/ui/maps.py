@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pandas as pd
@@ -39,6 +40,18 @@ def selected_hotspot_name(latest: dict[str, Any], focus_mode: str) -> str | None
     return focus_mode
 
 
+def _json_list(value: Any) -> list[dict]:
+    if not value:
+        return []
+    if isinstance(value, list):
+        return value
+    try:
+        parsed = json.loads(value)
+        return parsed if isinstance(parsed, list) else []
+    except Exception:
+        return []
+
+
 def build_map_data(hotspots_df: pd.DataFrame, latest: dict[str, Any], layer_filter: list[str], focused_name: str | None) -> tuple[pd.DataFrame, pd.DataFrame]:
     if hotspots_df.empty:
         return pd.DataFrame(), pd.DataFrame()
@@ -47,11 +60,22 @@ def build_map_data(hotspots_df: pd.DataFrame, latest: dict[str, Any], layer_filt
         return pd.DataFrame(), pd.DataFrame()
     base["color"] = base["layer_group"].map(LAYER_COLORS)
     base["radius"] = 140
-    focus_name = focused_name or (latest.get("primary_hotspot_name") if latest else None)
-    current = base[base["name"] == focus_name].copy() if focus_name else pd.DataFrame(columns=base.columns)
+
+    active = _json_list((latest or {}).get("active_hotspots_json"))
+    current_names = [item.get("name") for item in active if item.get("name")]
+    if focused_name:
+        current_names = [focused_name] + [n for n in current_names if n != focused_name]
+    if not current_names and latest:
+        current_names = [latest.get("primary_hotspot_name")]
+
+    current = base[base["name"].isin(current_names)].copy() if current_names else pd.DataFrame(columns=base.columns)
     if not current.empty:
-        current["color"] = [[230, 60, 60, 220]] * len(current)
-        current["radius"] = 320
+        severity_map = {item.get("name"): float(item.get("severity", 0.5) or 0.5) for item in active}
+        current["severity"] = current["name"].map(lambda x: severity_map.get(x, 0.45))
+        current["color"] = current["severity"].apply(
+            lambda s: [230, 60, 60, 220] if s >= 0.75 else [245, 140, 30, 220] if s >= 0.5 else [245, 190, 50, 210]
+        )
+        current["radius"] = current["severity"].apply(lambda s: 220 + 220 * float(s))
     return base, current
 
 
@@ -62,8 +86,8 @@ def render_city_map(hotspots_df: pd.DataFrame, latest: dict[str, Any], layer_fil
         return
     center_lat, center_lon, zoom = 41.3851, 2.1734, 11.8
     if not current.empty:
-        row = current.iloc[0]
-        center_lat, center_lon, zoom = float(row["lat"]), float(row["lon"]), 12.7
+        row = current.sort_values("radius", ascending=False).iloc[0]
+        center_lat, center_lon, zoom = float(row["lat"]), float(row["lon"]), 12.4
     layers = [pdk.Layer("ScatterplotLayer", data=base, get_position='[lon, lat]', get_fill_color="color", get_radius="radius", pickable=True, auto_highlight=True)]
     if not current.empty:
         layers.append(pdk.Layer("ScatterplotLayer", data=current, get_position='[lon, lat]', get_fill_color="color", get_radius="radius", pickable=True, auto_highlight=True))
@@ -122,6 +146,8 @@ def build_hotspot_signals(hotspots_df: pd.DataFrame, history_df: pd.DataFrame, l
     records = []
     primary = (latest or {}).get("primary_hotspot_name")
     active_event = (latest or {}).get("active_event") or "none"
+    active_hotspots = _json_list((latest or {}).get("active_hotspots_json"))
+    active_map = {item.get("name"): item for item in active_hotspots if item.get("name")}
     latest_metrics = {
         "network_speed_index": float((latest or {}).get("network_speed_index", 0.0) or 0.0),
         "corridor_reliability_index": float((latest or {}).get("corridor_reliability_index", 0.0) or 0.0),
@@ -166,11 +192,12 @@ def build_hotspot_signals(hotspots_df: pd.DataFrame, history_df: pd.DataFrame, l
         is_focused = name == focused_name
         cur_value, signal_type, short_label, message = _signal_value_from_metrics(layer, latest_metrics)
         prev_value, _, _, _ = _signal_value_from_metrics(layer, previous_metrics)
+        propagation_boost = float(active_map.get(name, {}).get("severity", 0.0) or 0.0)
         emphasis = 1.0 + (0.22 if is_primary else 0.0) + (0.12 if is_focused else 0.0)
-        severity = max(0.0, min(1.0, cur_value * emphasis))
+        severity = max(0.0, min(1.0, (0.6 * cur_value + 0.8 * propagation_boost) * emphasis))
         prev_severity = max(0.0, min(1.0, prev_value * emphasis))
         p = phase(severity, prev_severity)
-        visible = is_primary or is_focused or p != "Hidden"
+        visible = is_primary or is_focused or p != "Hidden" or name in active_map
         if not visible:
             continue
         level = classify(severity)
@@ -180,6 +207,9 @@ def build_hotspot_signals(hotspots_df: pd.DataFrame, history_df: pd.DataFrame, l
             "Alert": [245, 120, 35, 210],
             "Critical": [215, 50, 50, 230],
         }[level]
+        impacted = active_map.get(name, {}).get("impacted_subsystems", [])
+        if impacted:
+            message = f"{message} Propagated subsystems: {', '.join(impacted)}."
         records.append({
             "name": name,
             "lat": float(row["lat"]),
@@ -198,6 +228,7 @@ def build_hotspot_signals(hotspots_df: pd.DataFrame, history_df: pd.DataFrame, l
             "message": message,
             "is_primary": is_primary,
             "is_focused": is_focused,
+            "impacted_subsystems": ", ".join(impacted) if impacted else "—",
         })
     out = pd.DataFrame(records)
     if out.empty:
@@ -221,7 +252,7 @@ def render_signals_map(signals_df: pd.DataFrame, height: int = 680) -> None:
         map_style="dark",
         initial_view_state=pdk.ViewState(latitude=center_lat, longitude=center_lon, zoom=11.9, pitch=0),
         layers=layers,
-        tooltip={"html": "<b>{name}</b><br/><b>{alert_level}</b> · {phase} · {signal_type}<br/>{message}<br/><b>Event:</b> {active_event}<br/><b>Layer:</b> {layer_group}<br/>{streets}"},
+        tooltip={"html": "<b>{name}</b><br/><b>{alert_level}</b> · {phase} · {signal_type}<br/>{message}<br/><b>Event:</b> {active_event}<br/><b>Layer:</b> {layer_group}<br/><b>Propagation:</b> {impacted_subsystems}<br/>{streets}"},
     )
     try:
         st.pydeck_chart(deck, use_container_width=True, height=height)
