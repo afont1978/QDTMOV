@@ -12,6 +12,7 @@ from mobility_os.ui.tabs import (
     render_map_layers_tab,
     render_overview_tab,
     render_scenario_editor_tab,
+    render_executive_dashboard_tab,
     render_explainability_tab,
     render_signals_tab,
     render_simulation_tab,
@@ -105,6 +106,7 @@ def render_app() -> None:
 
     tabs = st.tabs([
         "Overview",
+        "Executive Dashboard",
         "Map & Layers",
         "Signals & Alerts Map",
         "Scenario Storyboard",
@@ -118,18 +120,20 @@ def render_app() -> None:
     with tabs[0]:
         render_overview_tab(df, latest, spec, hotspots_df, focus_name, int(ss["window"]), ss.get("map_layers", list(LAYER_COLORS.keys())))
     with tabs[1]:
-        render_map_layers_tab(df, latest, hotspots_df, focus_name, ss.get("map_layers", list(LAYER_COLORS.keys())))
+        render_executive_dashboard_tab(df)
     with tabs[2]:
-        render_signals_tab(df, latest, hotspots_df, focus_name, int(ss["window"]))
+        render_map_layers_tab(df, latest, hotspots_df, focus_name, ss.get("map_layers", list(LAYER_COLORS.keys())))
     with tabs[3]:
-        render_storyboard_tab(df, latest, spec, hotspots_df, focus_name)
+        render_signals_tab(df, latest, hotspots_df, focus_name, int(ss["window"]))
     with tabs[4]:
-        render_twins_tab(df, latest, hotspots_df, ss["rt"].twin_snapshot(), int(ss["window"]))
+        render_storyboard_tab(df, latest, spec, hotspots_df, focus_name)
     with tabs[5]:
-        render_simulation_tab(df, latest, hotspots_df, focus_name)
+        render_twins_tab(df, latest, hotspots_df, ss["rt"].twin_snapshot(), int(ss["window"]))
     with tabs[6]:
-        render_audit_tab(df, hotspots_df)
+        render_simulation_tab(df, latest, hotspots_df, focus_name)
     with tabs[7]:
-        render_explainability_tab(df)
+        render_audit_tab(df, hotspots_df)
     with tabs[8]:
+        render_explainability_tab(df)
+    with tabs[9]:
         render_scenario_editor_tab()

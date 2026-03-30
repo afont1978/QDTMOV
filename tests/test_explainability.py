@@ -28,5 +28,5 @@ def test_explainability_helpers_build_expected_outputs():
     assert explanation["confidence_band"] == "Medium"
     assert explanation["backend_provider"] == "SIM_QPU"
     assert not breakdown.empty
-    assert "Risk Score" in signals["Signal"].tolist()
+    assert "Risk score" in signals["Signal"].tolist()
     assert len(explanation["dominant_factors"]) >= 1
