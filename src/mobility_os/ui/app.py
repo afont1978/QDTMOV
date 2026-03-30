@@ -9,6 +9,7 @@ from mobility_os.ui.components import (
     inject_global_styles,
     render_hero,
     render_kpi_row,
+    render_section_header,
     render_status_bar,
 )
 from mobility_os.ui.maps import LAYER_COLORS, hotspots_dataframe, selected_hotspot_name
@@ -85,11 +86,19 @@ def render_app() -> None:
     hotspots = load_hotspots()
     hotspots_df = hotspots_dataframe(hotspots)
 
-    st.title("Barcelona Mobility Control Room")
     render_hero(
         "Barcelona Mobility Control Room",
-        "Refactored modular control room with live monitoring, storyboard, what-if simulation, twins, audit, scenario editing and explainability.",
+        "Synthetic city control room with live monitoring, executive KPIs, signals, storyboard, twins, what-if analysis and explainability.",
     )
+
+    top = st.columns([1.2, 1.0])
+    with top[0]:
+        render_section_header(
+            "Live Operations",
+            "Use a single active view to reduce flicker and keep the focus on the operational storyline.",
+        )
+    with top[1]:
+        view = _view_selector("Current view", VIEWS, "view_selector")
 
     with st.sidebar:
         st.subheader("Control panel")
@@ -120,22 +129,18 @@ def render_app() -> None:
             st.rerun()
 
         cols = st.columns(4)
-
         with cols[0]:
             if st.button("Start", use_container_width=True):
                 ss["running"] = True
                 st.rerun()
-
         with cols[1]:
             if st.button("Pause", use_container_width=True):
                 ss["running"] = False
                 st.rerun()
-
         with cols[2]:
             if st.button("Step", use_container_width=True):
                 ss["rt"].step()
                 st.rerun()
-
         with cols[3]:
             if st.button("Reset", use_container_width=True):
                 _rebuild()
@@ -173,10 +178,6 @@ def render_app() -> None:
             hotspot_options,
             index=default_index,
         )
-
-        st.caption(f"Running: {'Yes' if ss.get('running', False) else 'No'}")
-
-    view = _view_selector("View", VIEWS, "view_selector")
 
     live_refresh_enabled = ss.get("running", False) and view not in FORM_HEAVY_VIEWS
     run_every = f"{int(ss['live_interval_s'])}s" if live_refresh_enabled else None
