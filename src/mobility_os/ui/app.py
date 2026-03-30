@@ -12,6 +12,7 @@ from mobility_os.ui.tabs import (
     render_map_layers_tab,
     render_overview_tab,
     render_scenario_editor_tab,
+    render_explainability_tab,
     render_signals_tab,
     render_simulation_tab,
     render_storyboard_tab,
@@ -48,7 +49,7 @@ def render_app() -> None:
 
     st.set_page_config(page_title="Barcelona Mobility Control Room", layout="wide")
     st.title("Barcelona Mobility Control Room")
-    st.caption("Refactored modular control room with storyboard, what-if simulation, twins, audit and scenario editing.")
+    st.caption("Refactored modular control room with storyboard, what-if simulation, twins, audit, scenario editing and explainability.")
 
     with st.sidebar:
         st.subheader("Control panel")
@@ -110,6 +111,7 @@ def render_app() -> None:
         "Mobility Twins",
         "What-if & Simulation",
         "Audit & Orchestration",
+        "Explainability",
         "Scenario Editor",
     ])
 
@@ -128,4 +130,6 @@ def render_app() -> None:
     with tabs[6]:
         render_audit_tab(df, hotspots_df)
     with tabs[7]:
+        render_explainability_tab(df)
+    with tabs[8]:
         render_scenario_editor_tab()
