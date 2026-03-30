@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -13,10 +15,22 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def get_runs_dir(root: str | Path | None = None) -> Path:
+    if root is not None:
+        path = Path(root)
+    else:
+        env_dir = os.getenv("QDTMOV_RUNS_DIR")
+        if env_dir:
+            path = Path(env_dir)
+        else:
+            path = Path(tempfile.gettempdir()) / "qdtmov_runs"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 class RunStore:
     def __init__(self, root: str | Path | None = None):
-        self.root = Path(root) if root else Path("runs")
-        self.root.mkdir(parents=True, exist_ok=True)
+        self.root = get_runs_dir(root)
 
     def create_run(self, metadata: Dict[str, Any], run_id: Optional[str] = None) -> str:
         rid = run_id or uuid4().hex[:12]
@@ -61,7 +75,7 @@ class RunStore:
 
     def list_runs(self) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
-        for manifest_path in sorted(self.root.glob('*/manifest.json'), reverse=True):
+        for manifest_path in sorted(self.root.glob("*/manifest.json"), reverse=True):
             try:
                 rows.append(json.loads(manifest_path.read_text(encoding="utf-8")))
             except Exception:
