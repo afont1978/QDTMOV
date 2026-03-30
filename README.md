@@ -1,86 +1,44 @@
-# QDTL2 — Barcelona Mobility Control Room
+# QDTMOV — Barcelona Mobility Control Room
 
-Refactored repository for a hybrid classical–quantum urban mobility control room focused on Barcelona.
+Aplicación Streamlit para simulación y visualización de un control room de movilidad urbana en Barcelona, con arquitectura modular, escenarios sintéticos, gemelos digitales simplificados y lógica híbrida de decisión.
 
-## Included
+## Qué hace
 
-- Modular package layout under `src/mobility_os/`
-- Streamlit dashboard entrypoint in `app.py`
-- Compatibility wrapper in `mobility_runtime.py`
-- Synthetic mobility runtime with:
-  - scenario-driven execution
-  - hybrid route selection
-  - fallback-to-classical logic
-  - replay-ready persisted runs
-- Scenario libraries under `data/scenarios/`
-- Hotspot catalogue under `data/hotspots/`
-- FastAPI service under `src/mobility_os/api/fastapi_app.py`
-- Basic automated tests
+La aplicación permite:
 
-## Repository structure
+- visualizar hotspots urbanos y capas operativas
+- ejecutar escenarios sintéticos de movilidad
+- analizar señales y alertas
+- explorar un storyboard del escenario
+- revisar el estado de distintos mobility twins
+- lanzar simulaciones what-if
+- auditar decisiones y evolución temporal
+
+## Estructura del proyecto
 
 ```text
-qdtl2/
-├─ app.py
-├─ mobility_runtime.py
-├─ pyproject.toml
-├─ requirements.txt
-├─ Makefile
-├─ data/
-│  ├─ hotspots/
-│  └─ scenarios/
-├─ src/
-│  └─ mobility_os/
-│     ├─ api/
-│     ├─ domain/
-│     ├─ io/
-│     ├─ orchestration/
-│     ├─ runtime/
-│     ├─ scenarios/
-│     ├─ solvers/
-│     └─ ui/
-└─ tests/
-```
-
-## Run locally
-
-Install dependencies:
-
-```bash
-python -m pip install -r requirements.txt
-```
-
-Launch the dashboard:
-
-```bash
-python -m streamlit run app.py
-```
-
-Run tests:
-
-```bash
-python -m pytest -q
-```
-
-Launch the API:
-
-```bash
-python -m uvicorn mobility_os.api.fastapi_app:app --app-dir src --reload
-```
-
-## API endpoints
-
-- `GET /health`
-- `GET /scenarios`
-- `GET /runs`
-- `POST /run/start`
-- `POST /run/{run_id}/step`
-- `POST /run/{run_id}/reset`
-- `GET /run/{run_id}/snapshot`
-- `GET /run/{run_id}/records`
-
-## Notes
-
-This repository is a complete, modularized refactor base. It preserves the original project intent and core concepts while separating the system into reusable packages for runtime, orchestration, UI, scenarios, persistence and API.
-
-The dashboard is fully mounted as a coherent repo, but it is still a pragmatic refactor base rather than a perfect one-to-one recreation of every visual nuance from the original monolithic app.
+.
+├── .streamlit/
+│   └── config.toml
+├── app.py
+├── requirements.txt
+├── pyproject.toml
+├── README.md
+├── data/
+│   ├── barcelona_mobility_hotspots.csv
+│   ├── scenario_library.json
+│   └── scenario_library_high_complexity_v2.json
+├── src/
+│   └── mobility_os/
+│       ├── api/
+│       ├── domain/
+│       ├── io/
+│       ├── orchestration/
+│       ├── runtime/
+│       ├── scenarios/
+│       ├── solvers/
+│       └── ui/
+│           ├── app.py
+│           ├── components.py
+│           └── tabs/
+└── tests/
