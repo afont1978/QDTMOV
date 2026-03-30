@@ -35,3 +35,16 @@ def render_chip_row(items: Iterable[Tuple[str, str]]) -> None:
             f'<span style="display:inline-block;padding:0.22rem 0.55rem;margin:0 0.3rem 0.3rem 0;border-radius:999px;background:{color}22;border:1px solid {color}66;color:#e5eef8;font-size:0.78rem;">{text}</span>'
         )
     st.markdown("".join(html_items), unsafe_allow_html=True)
+
+
+
+def chart_key(tab: str, name: str, state: dict | None = None, suffix: object | None = None) -> str:
+    """Build a stable unique key for Streamlit charts across tabs and reruns."""
+    step = 0
+    if isinstance(state, dict):
+        try:
+            step = int(state.get("step_id", 0) or 0)
+        except Exception:
+            step = 0
+    extra = f"_{suffix}" if suffix is not None else ""
+    return f"{tab}_{name}_{step}{extra}"
