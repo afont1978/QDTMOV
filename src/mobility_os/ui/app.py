@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import streamlit as st
@@ -10,10 +9,9 @@ from mobility_os.ui.components import render_kpi_row
 from mobility_os.ui.maps import LAYER_COLORS, hotspots_dataframe, selected_hotspot_name
 from mobility_os.ui.tabs import (
     render_audit_tab,
-    render_benchmark_tab,
     render_map_layers_tab,
     render_overview_tab,
-    render_replay_tab,
+    render_scenario_editor_tab,
     render_signals_tab,
     render_simulation_tab,
     render_storyboard_tab,
@@ -50,14 +48,17 @@ def render_app() -> None:
 
     st.set_page_config(page_title="Barcelona Mobility Control Room", layout="wide")
     st.title("Barcelona Mobility Control Room")
-    st.caption("Refactored modular control room with storyboard, replay, benchmark, what-if simulation, twins and audit views.")
+    st.caption("Refactored modular control room with storyboard, what-if simulation, twins, audit and scenario editing.")
 
     with st.sidebar:
         st.subheader("Control panel")
+        scenario_keys = list(scenarios.keys())
+        if ss["scenario"] not in scenario_keys:
+            ss["scenario"] = scenario_keys[0]
         new_scenario = st.selectbox(
             "Scenario",
-            list(scenarios.keys()),
-            index=list(scenarios.keys()).index(ss["scenario"]),
+            scenario_keys,
+            index=scenario_keys.index(ss["scenario"]),
             format_func=lambda x: scenarios[x].title,
         )
         new_seed = st.number_input("Seed", min_value=1, max_value=999999, value=int(ss["seed"]), step=1)
@@ -108,9 +109,8 @@ def render_app() -> None:
         "Scenario Storyboard",
         "Mobility Twins",
         "What-if & Simulation",
-        "Replay & Runs",
-        "Benchmark Batch",
         "Audit & Orchestration",
+        "Scenario Editor",
     ])
 
     with tabs[0]:
@@ -126,8 +126,6 @@ def render_app() -> None:
     with tabs[5]:
         render_simulation_tab(df, latest, hotspots_df, focus_name)
     with tabs[6]:
-        render_replay_tab()
-    with tabs[7]:
-        render_benchmark_tab(scenarios)
-    with tabs[8]:
         render_audit_tab(df, hotspots_df)
+    with tabs[7]:
+        render_scenario_editor_tab()
