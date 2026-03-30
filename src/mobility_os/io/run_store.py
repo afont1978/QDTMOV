@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 import json
@@ -15,22 +16,22 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def get_runs_dir(root: str | Path | None = None) -> Path:
-    if root is not None:
-        path = Path(root)
+def resolve_runs_root(root: str | Path | None = None) -> Path:
+    if root:
+        p = Path(root)
     else:
         env_dir = os.getenv("QDTMOV_RUNS_DIR")
         if env_dir:
-            path = Path(env_dir)
+            p = Path(env_dir)
         else:
-            path = Path(tempfile.gettempdir()) / "qdtmov_runs"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+            p = Path(tempfile.gettempdir()) / "qdtmov_runs"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
 
 
 class RunStore:
     def __init__(self, root: str | Path | None = None):
-        self.root = get_runs_dir(root)
+        self.root = resolve_runs_root(root)
 
     def create_run(self, metadata: Dict[str, Any], run_id: Optional[str] = None) -> str:
         rid = run_id or uuid4().hex[:12]
@@ -40,6 +41,7 @@ class RunStore:
         manifest.setdefault("run_id", rid)
         manifest.setdefault("created_at", utc_now_iso())
         manifest.setdefault("updated_at", manifest["created_at"])
+        manifest.setdefault("records", 0)
         (run_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
         (run_dir / "records.jsonl").touch()
         return rid
@@ -49,10 +51,19 @@ class RunStore:
         run_dir.mkdir(parents=True, exist_ok=True)
         with (run_dir / "records.jsonl").open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
-        manifest = self.read_manifest(run_id) or {"run_id": run_id, "created_at": utc_now_iso()}
+        manifest = self.read_manifest(run_id) or {"run_id": run_id, "created_at": utc_now_iso(), "records": 0}
         manifest["updated_at"] = utc_now_iso()
         manifest["records"] = int(manifest.get("records", 0)) + 1
         (run_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def save_run_metadata(self, run_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+        manifest = self.read_manifest(run_id) or {"run_id": run_id, "created_at": utc_now_iso(), "records": 0}
+        manifest.update(updates or {})
+        manifest["updated_at"] = utc_now_iso()
+        run_dir = self.root / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        return manifest
 
     def read_manifest(self, run_id: str) -> Dict[str, Any] | None:
         path = self.root / run_id / "manifest.json"
@@ -73,11 +84,26 @@ class RunStore:
                 rows.append(json.loads(line))
         return pd.DataFrame(rows)
 
+    def load_run(self, run_id: str) -> Dict[str, Any]:
+        return {
+            "manifest": self.read_manifest(run_id) or {},
+            "records": self.read_records(run_id),
+        }
+
+    def export_run_csv_bytes(self, run_id: str) -> bytes:
+        df = self.read_records(run_id)
+        if df.empty:
+            return b""
+        return df.to_csv(index=False).encode("utf-8")
+
     def list_runs(self) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
-        for manifest_path in sorted(self.root.glob("*/manifest.json"), reverse=True):
+        for manifest_path in self.root.glob("*/manifest.json"):
             try:
                 rows.append(json.loads(manifest_path.read_text(encoding="utf-8")))
             except Exception:
                 continue
+        def _sort_key(item: Dict[str, Any]) -> str:
+            return str(item.get("updated_at") or item.get("created_at") or "")
+        rows.sort(key=_sort_key, reverse=True)
         return rows
