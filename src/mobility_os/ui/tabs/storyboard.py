@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from mobility_os.ui.charts import make_story_disturbance_chart, make_story_event_track, make_subsystem_score_chart
-from mobility_os.ui.components import render_chip_row, render_summary_table
+from mobility_os.ui.components import chart_key, render_chip_row, render_summary_table
 from mobility_os.ui.maps import render_hotspot_summary
 
 
@@ -36,11 +36,11 @@ def render_storyboard_tab(df: pd.DataFrame, latest: dict, spec, hotspots_df: pd.
 
     charts = st.columns(3)
     with charts[0]:
-        st.plotly_chart(make_story_event_track(spec, latest.get("active_event"), int(latest.get("step_id", 0) or 0)), use_container_width=True)
+        st.plotly_chart(make_story_event_track(spec, latest.get("active_event"), int(latest.get("step_id", 0) or 0)), use_container_width=True, key=chart_key("storyboard", "event_track", latest))
     with charts[1]:
-        st.plotly_chart(make_story_disturbance_chart(spec), use_container_width=True)
+        st.plotly_chart(make_story_disturbance_chart(spec), use_container_width=True, key=chart_key("storyboard", "disturbance_chart", latest))
     with charts[2]:
-        st.plotly_chart(make_subsystem_score_chart(latest), use_container_width=True)
+        st.plotly_chart(make_subsystem_score_chart(latest), use_container_width=True, key=chart_key("storyboard", "subsystem_score", latest))
 
     bottom = st.columns(3)
     with bottom[0]:
