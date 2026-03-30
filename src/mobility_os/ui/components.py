@@ -37,14 +37,7 @@ def render_chip_row(items: Iterable[Tuple[str, str]]) -> None:
     st.markdown("".join(html_items), unsafe_allow_html=True)
 
 
-
-def chart_key(tab: str, name: str, state: dict | None = None, suffix: object | None = None) -> str:
-    """Build a stable unique key for Streamlit charts across tabs and reruns."""
-    step = 0
-    if isinstance(state, dict):
-        try:
-            step = int(state.get("step_id", 0) or 0)
-        except Exception:
-            step = 0
-    extra = f"_{suffix}" if suffix is not None else ""
+def chart_key(tab: str, name: str, latest: dict | None = None, suffix: str | int | None = None) -> str:
+    step = 0 if not latest else latest.get("step_id", 0)
+    extra = "" if suffix is None else f"_{suffix}"
     return f"{tab}_{name}_{step}{extra}"
