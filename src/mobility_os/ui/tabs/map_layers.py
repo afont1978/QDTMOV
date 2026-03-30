@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from mobility_os.ui.charts import make_subsystem_score_chart
+from mobility_os.ui.components import chart_key
 from mobility_os.ui.maps import render_city_map, render_hotspot_summary
 
 
@@ -21,6 +22,6 @@ def render_map_layers_tab(df: pd.DataFrame, latest: dict, hotspots_df: pd.DataFr
             layer_counts = hotspots_df[hotspots_df["layer_group"].isin(layer_filter)]["layer_group"].value_counts().reset_index()
             layer_counts.columns = ["Layer", "Count"]
             st.dataframe(layer_counts, use_container_width=True, hide_index=True)
-            st.plotly_chart(make_subsystem_score_chart(latest), use_container_width=True)
+            st.plotly_chart(make_subsystem_score_chart(latest), use_container_width=True, key=chart_key("map_layers", "subsystem_score", latest))
     catalogue = hotspots_df[["name", "layer_group", "category", "streets", "lat", "lon"]].copy() if not hotspots_df.empty else hotspots_df
     st.dataframe(catalogue, use_container_width=True, height=320, hide_index=True)
