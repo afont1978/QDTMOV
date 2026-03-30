@@ -1,7 +1,10 @@
-import json
-from pathlib import Path
-
-from mobility_os.scenarios.editor import save_custom_scenario, scenario_to_editor_dict
+from mobility_os.scenarios.editor import (
+    apply_demo_preset,
+    apply_domain_template,
+    apply_shocks,
+    save_custom_scenario,
+    scenario_to_editor_dict,
+)
 from mobility_os.scenarios.loader import load_scenarios
 
 
@@ -26,3 +29,21 @@ def test_can_save_and_load_custom_scenario(monkeypatch, tmp_path):
     assert "corridor_congestion_custom_test" in loaded
     assert loaded["corridor_congestion_custom_test"].title == "Corridor congestion custom test"
     assert loaded["corridor_congestion_custom_test"].disturbances["corridor_flow_multiplier"] == 1.12
+
+
+def test_templates_and_shocks_enrich_payload():
+    scenarios = load_scenarios()
+    base = scenario_to_editor_dict(scenarios["corridor_congestion"])
+
+    templated = apply_domain_template(base, "gateway_access")
+    assert templated["mode"] == "gateway"
+    assert "gateway_surge" in templated["trigger_events"]
+
+    shocked = apply_shocks(base, ["rain_shock", "incident_chain"])
+    assert "rain_event" in shocked["trigger_events"]
+    assert "incident" in shocked["trigger_events"]
+    assert "visibility" in shocked["disturbances"]
+
+    demo = apply_demo_preset(base, "wet_school_safety_demo")
+    assert demo["mode"] == "safety"
+    assert "school_peak" in demo["trigger_events"]

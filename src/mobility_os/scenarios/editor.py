@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Iterable
 
-from mobility_os.scenarios.loader import load_scenarios, user_scenarios_path
-from mobility_os.scenarios.schema import EventScheduleEntry, ScenarioSpec
+from mobility_os.scenarios.loader import user_scenarios_path
+from mobility_os.scenarios.presets import DEMO_PRESETS, DOMAIN_TEMPLATES, SHOCK_LIBRARY
+from mobility_os.scenarios.schema import ScenarioSpec
 
 
 ALLOWED_COMPLEXITIES = {"low", "medium", "high", "very_high", "extreme"}
@@ -18,6 +18,16 @@ def sanitize_scenario_id(value: str) -> str:
     value = re.sub(r"[^a-z0-9_]+", "_", value)
     value = re.sub(r"_+", "_", value).strip("_")
     return value or "custom_scenario"
+
+
+def _merge_unique(seq_a: Iterable[str], seq_b: Iterable[str]) -> list[str]:
+    out: list[str] = []
+    seen = set()
+    for item in list(seq_a) + list(seq_b):
+        if item and item not in seen:
+            seen.add(item)
+            out.append(item)
+    return out
 
 
 def scenario_to_editor_dict(spec: ScenarioSpec) -> Dict[str, Any]:
@@ -35,6 +45,44 @@ def scenario_to_editor_dict(spec: ScenarioSpec) -> Dict[str, Any]:
         "note": spec.note,
         "twin_hotspots": dict(spec.twin_hotspots),
     }
+
+
+def apply_domain_template(payload: Dict[str, Any], template_id: str) -> Dict[str, Any]:
+    template = DOMAIN_TEMPLATES.get(template_id, DOMAIN_TEMPLATES["none"])
+    out = dict(payload)
+    if template.get("mode"):
+        out["mode"] = template["mode"]
+    if template.get("complexity"):
+        out["complexity"] = template["complexity"]
+    out["trigger_events"] = _merge_unique(out.get("trigger_events", []), template.get("trigger_events", []))
+    out["expected_subproblems"] = _merge_unique(out.get("expected_subproblems", []), template.get("expected_subproblems", []))
+    out["recommended_interventions"] = _merge_unique(out.get("recommended_interventions", []), template.get("recommended_interventions", []))
+    out["kpis"] = _merge_unique(out.get("kpis", []), template.get("kpis", []))
+    out["disturbances"] = {**template.get("disturbances", {}), **out.get("disturbances", {})}
+    return out
+
+
+def apply_shocks(payload: Dict[str, Any], shock_ids: list[str]) -> Dict[str, Any]:
+    out = dict(payload)
+    note_parts = [str(out.get("note", "")).strip()] if str(out.get("note", "")).strip() else []
+    for sid in shock_ids:
+        shock = SHOCK_LIBRARY.get(sid)
+        if not shock:
+            continue
+        out["trigger_events"] = _merge_unique(out.get("trigger_events", []), shock.get("events", []))
+        out["disturbances"] = {**out.get("disturbances", {}), **shock.get("disturbances", {})}
+        suffix = shock.get("note_suffix")
+        if suffix:
+            note_parts.append(str(suffix))
+    out["note"] = " ".join(x for x in note_parts if x).strip()
+    return out
+
+
+def apply_demo_preset(payload: Dict[str, Any], preset_id: str) -> Dict[str, Any]:
+    preset = DEMO_PRESETS.get(preset_id, DEMO_PRESETS["none"])
+    out = apply_domain_template(payload, preset.get("template", "none"))
+    out = apply_shocks(out, list(preset.get("shocks", [])))
+    return out
 
 
 def validate_editor_payload(payload: Dict[str, Any]) -> list[str]:
@@ -72,7 +120,7 @@ def build_custom_spec(payload: Dict[str, Any]) -> ScenarioSpec:
     )
 
 
-def save_custom_scenario(payload: Dict[str, Any]) -> Path:
+def save_custom_scenario(payload: Dict[str, Any]):
     errors = validate_editor_payload(payload)
     if errors:
         raise ValueError("\n".join(errors))
@@ -86,7 +134,3 @@ def save_custom_scenario(payload: Dict[str, Any]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
     return path
-
-
-def custom_scenarios_exist() -> bool:
-    return user_scenarios_path().exists()
