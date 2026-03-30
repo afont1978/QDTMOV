@@ -12,7 +12,7 @@ from mobility_os.runtime.executive import (
     subsystem_status_rows,
     trend_table,
 )
-from mobility_os.ui.components import render_chip_row, render_summary_table
+from mobility_os.ui.components import chart_key, render_chip_row, render_summary_table
 
 
 STATUS_TONES = {
@@ -61,53 +61,35 @@ def render_executive_dashboard_tab(df: pd.DataFrame) -> None:
             ("Mode", latest.get("mode", "—")),
             ("Primary hotspot", latest.get("primary_hotspot_name", "—")),
             ("Active event", latest.get("active_event", "none") or "none"),
-            ("Route reason", latest.get("route_reason", "—")),
-        ], "Executive summary")
+            ("Decision route", latest.get("decision_route", "—")),
+        ], "Current executive summary")
     with summary[1]:
-        rows = subsystem_status_rows(latest)
-        render_summary_table([(name, f"{status} · {score:.3f}") for name, status, score in rows], "Subsystem status")
+        render_summary_table([
+            ("Operational score", f"{latest.get('step_operational_score', 0.0):.3f}"),
+            ("Network speed index", f"{latest.get('network_speed_index', 0.0):.3f}"),
+            ("Bus bunching index", f"{latest.get('bus_bunching_index', 0.0):.3f}"),
+            ("Risk score", f"{latest.get('risk_score', 0.0):.3f}"),
+            ("Gateway delay index", f"{latest.get('gateway_delay_index', 0.0):.3f}"),
+        ], "Current KPI state")
 
     charts = st.columns(2)
     with charts[0]:
-        fig = px.bar(
-            score_df,
-            x="Score",
-            y="Subsystem",
-            orientation="h",
-            template="plotly_dark",
-            title="Subsystem scoreboard",
-            range_x=[0, 1.05],
-        )
-        fig.update_layout(margin=dict(l=20, r=20, t=50, b=20), height=340, showlegend=False)
-        st.plotly_chart(fig, use_container_width=True, key=f"executive_subsystem_{int(latest.get('step_id', 0) or 0)}")
+        fig_scores = px.bar(score_df, x="Subsystem", y="Score", color="Subsystem", template="plotly_dark", title="Subsystem scores")
+        fig_scores.update_layout(height=320, margin=dict(l=20, r=20, t=50, b=20), showlegend=False)
+        st.plotly_chart(fig_scores, use_container_width=True, key=chart_key("executive", "scores", latest))
     with charts[1]:
-        fig = px.bar(
-            pressure_df.head(6),
-            x="Value",
-            y="Pressure",
-            orientation="h",
-            template="plotly_dark",
-            title="Pressure ranking",
-            range_x=[0, 1.05],
-        )
-        fig.update_layout(margin=dict(l=20, r=20, t=50, b=20), height=340, showlegend=False)
-        st.plotly_chart(fig, use_container_width=True, key=f"executive_pressure_{int(latest.get('step_id', 0) or 0)}")
+        fig_pressure = px.bar(pressure_df, x="Pressure", y="Domain", orientation="h", template="plotly_dark", title="Pressure ranking")
+        fig_pressure.update_layout(height=320, margin=dict(l=20, r=20, t=50, b=20), showlegend=False)
+        st.plotly_chart(fig_pressure, use_container_width=True, key=chart_key("executive", "pressure", latest))
 
-    lower = st.columns(2)
-    with lower[0]:
-        trend_cols = [c for c in ["step_operational_score", "network_speed_index", "risk_score", "gateway_delay_index"] if c in df.columns]
-        work = df[["step_id", *trend_cols]].tail(60).copy()
-        long_df = work.melt(id_vars=["step_id"], var_name="Metric", value_name="Value")
-        fig = px.line(long_df, x="step_id", y="Value", color="Metric", template="plotly_dark", title="Executive trend window")
-        fig.update_layout(margin=dict(l=20, r=20, t=50, b=20), height=340)
-        st.plotly_chart(fig, use_container_width=True, key=f"executive_trend_{int(latest.get('step_id', 0) or 0)}")
-    with lower[1]:
-        if routes_df.empty:
-            st.info("No route mix available yet.")
-        else:
-            fig = px.pie(routes_df, names="Route", values="Count", hole=0.55, template="plotly_dark", title="Route mix")
-            fig.update_layout(margin=dict(l=20, r=20, t=50, b=20), height=340)
-            st.plotly_chart(fig, use_container_width=True, key=f"executive_routes_{int(latest.get('step_id', 0) or 0)}")
+    bottom = st.columns(2)
+    with bottom[0]:
+        fig_routes = px.pie(routes_df, names="route", values="count", hole=0.55, template="plotly_dark", title="Route mix")
+        fig_routes.update_layout(height=300, margin=dict(l=20, r=20, t=50, b=20))
+        st.plotly_chart(fig_routes, use_container_width=True, key=chart_key("executive", "route_mix", latest))
+    with bottom[1]:
+        fig_trends = px.line(trends_df, x="Window", y="Value", color="Metric", template="plotly_dark", title="Rolling trend snapshot")
+        fig_trends.update_layout(height=300, margin=dict(l=20, r=20, t=50, b=20))
+        st.plotly_chart(fig_trends, use_container_width=True, key=chart_key("executive", "trends", latest))
 
-    st.markdown("### Window trends")
-    st.dataframe(trends_df, use_container_width=True, hide_index=True, height=240)
+    st.dataframe(pd.DataFrame(subsystem_status_rows(latest)), use_container_width=True, hide_index=True)

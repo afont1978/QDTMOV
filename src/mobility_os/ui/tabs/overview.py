@@ -13,7 +13,7 @@ def render_overview_tab(df: pd.DataFrame, latest: dict, spec, hotspots_df: pd.Da
         st.info("No simulation data yet.")
         return
     live_df = df.tail(int(window)).copy()
-    left, right = st.columns([1.7, 1.0])
+    left, right = st.columns([1.65, 1.0])
     with left:
         render_city_map(hotspots_df, latest, layer_filter=layer_filter, focused_name=focus_name, height=560)
     with right:
@@ -30,25 +30,9 @@ def render_overview_tab(df: pd.DataFrame, latest: dict, spec, hotspots_df: pd.Da
         )
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.plotly_chart(
-            make_line(live_df, ["network_speed_index", "corridor_reliability_index"], "Network dynamics"),
-            use_container_width=True,
-            key=chart_key("overview", "network_dynamics", latest),
-        )
+        st.plotly_chart(make_line(live_df, ["network_speed_index", "corridor_reliability_index"], "Network dynamics"), use_container_width=True, key=chart_key("overview", "network_dynamics", latest))
     with c2:
-        st.plotly_chart(
-            make_line(live_df, ["bus_bunching_index", "bus_commercial_speed_kmh"], "Transit dynamics"),
-            use_container_width=True,
-            key=chart_key("overview", "transit_dynamics", latest),
-        )
+        st.plotly_chart(make_line(live_df, ["bus_bunching_index", "bus_commercial_speed_kmh"], "Transit dynamics"), use_container_width=True, key=chart_key("overview", "transit_dynamics", latest))
     with c3:
-        st.plotly_chart(
-            make_line(live_df, ["risk_score", "gateway_delay_index", "curb_occupancy_rate"], "Pressure dynamics"),
-            use_container_width=True,
-            key=chart_key("overview", "pressure_dynamics", latest),
-        )
-    st.plotly_chart(
-        make_subsystem_score_chart(latest),
-        use_container_width=True,
-        key=chart_key("overview", "subsystem_score", latest),
-    )
+        st.plotly_chart(make_line(live_df, ["risk_score", "gateway_delay_index", "curb_occupancy_rate"], "Pressure dynamics"), use_container_width=True, key=chart_key("overview", "pressure_dynamics", latest))
+    st.plotly_chart(make_subsystem_score_chart(latest), use_container_width=True, key=chart_key("overview", "subsystem_score", latest))
