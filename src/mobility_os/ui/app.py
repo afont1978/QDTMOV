@@ -10,6 +10,7 @@ from mobility_os.ui.components import render_kpi_row
 from mobility_os.ui.maps import LAYER_COLORS, hotspots_dataframe, selected_hotspot_name
 from mobility_os.ui.tabs import (
     render_audit_tab,
+    render_benchmark_tab,
     render_map_layers_tab,
     render_overview_tab,
     render_replay_tab,
@@ -49,7 +50,7 @@ def render_app() -> None:
 
     st.set_page_config(page_title="Barcelona Mobility Control Room", layout="wide")
     st.title("Barcelona Mobility Control Room")
-    st.caption("Refactored modular control room with storyboard, replay, what-if simulation, twins and audit views.")
+    st.caption("Refactored modular control room with storyboard, replay, benchmark, what-if simulation, twins and audit views.")
 
     with st.sidebar:
         st.subheader("Control panel")
@@ -108,6 +109,7 @@ def render_app() -> None:
         "Mobility Twins",
         "What-if & Simulation",
         "Replay & Runs",
+        "Benchmark Batch",
         "Audit & Orchestration",
     ])
 
@@ -126,4 +128,6 @@ def render_app() -> None:
     with tabs[6]:
         render_replay_tab()
     with tabs[7]:
+        render_benchmark_tab(scenarios)
+    with tabs[8]:
         render_audit_tab(df, hotspots_df)
