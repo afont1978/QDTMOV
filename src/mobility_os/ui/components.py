@@ -82,7 +82,7 @@ def render_hero(title: str, subtitle: str) -> None:
     )
 
 
-def render_status_bar(items: Iterable[Tuple[str, Any, str]]) -> None:
+def render_status_bar(items: Iterable[tuple]) -> None:
     tone_map = {
         "neutral": ("rgba(94,138,196,0.16)", "#dbe8ff"),
         "warn": ("rgba(255,193,7,0.16)", "#fff3cc"),
@@ -91,7 +91,14 @@ def render_status_bar(items: Iterable[Tuple[str, Any, str]]) -> None:
         "dim": ("rgba(255,255,255,0.06)", "#d0dae6"),
     }
     chips = []
-    for label, value, tone in items:
+    for item in items:
+        if len(item) == 2:
+            label, value = item
+            tone = "neutral"
+        elif len(item) == 3:
+            label, value, tone = item
+        else:
+            continue
         bg, fg = tone_map.get(tone, tone_map["neutral"])
         chips.append(
             f'<span class="qdt-chip" style="background:{bg};color:{fg};">{label}: {value}</span>'
