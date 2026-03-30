@@ -12,14 +12,32 @@ from mobility_os.runtime.executive import (
     subsystem_status_rows,
     trend_table,
 )
-from mobility_os.ui.components import chart_key, render_chip_row, render_section_header, render_summary_table
+from mobility_os.ui.components import chart_key, render_chip_row, render_summary_table
+
+
+def _safe_plotly_bar(df: pd.DataFrame, **kwargs):
+    if df.empty:
+        return None
+    return px.bar(df, **kwargs)
+
+
+def _build_trend_long(trends_df: pd.DataFrame) -> pd.DataFrame:
+    if trends_df.empty or "Metric" not in trends_df.columns:
+        return pd.DataFrame(columns=["Metric", "Window", "Value"])
+    delta_cols = [c for c in trends_df.columns if c.startswith("Δ")]
+    if not delta_cols:
+        return pd.DataFrame(columns=["Metric", "Window", "Value"])
+    long_df = trends_df.melt(
+        id_vars=["Metric"],
+        value_vars=delta_cols,
+        var_name="Window",
+        value_name="Value",
+    )
+    return long_df
 
 
 def render_executive_dashboard_tab(df: pd.DataFrame) -> None:
-    render_section_header(
-        "Executive Dashboard",
-        "Decision-oriented KPIs and subsystem balance for a quick situation appraisal.",
-    )
+    st.markdown("## Executive Dashboard")
     if df.empty:
         st.info("No records available yet.")
         return
@@ -29,9 +47,10 @@ def render_executive_dashboard_tab(df: pd.DataFrame) -> None:
     score_df = subsystem_scores_df(latest)
     pressure_df = pressure_ranking_df(latest)
     trends_df = trend_table(df)
+    trends_long_df = _build_trend_long(trends_df)
     routes_df = route_mix_df(df)
 
-    top = st.columns(5, gap="large")
+    top = st.columns(5)
     with top[0]:
         st.metric("City score", f"{snapshot['city_score']:.3f}")
     with top[1]:
@@ -50,7 +69,7 @@ def render_executive_dashboard_tab(df: pd.DataFrame) -> None:
         (f"Fallback · {snapshot['fallback_triggered']}", "alert" if snapshot['fallback_triggered'] else "good"),
     ])
 
-    summary = st.columns([1.0, 1.0], gap="large")
+    summary = st.columns([1.0, 1.0])
     with summary[0]:
         render_summary_table([
             ("Scenario", latest.get("scenario", "—")),
@@ -66,15 +85,25 @@ def render_executive_dashboard_tab(df: pd.DataFrame) -> None:
             ("Bus bunching index", f"{latest.get('bus_bunching_index', 0.0):.3f}"),
             ("Risk score", f"{latest.get('risk_score', 0.0):.3f}"),
             ("Gateway delay index", f"{latest.get('gateway_delay_index', 0.0):.3f}"),
-        ], "Operational picture")
+        ], "Current KPI state")
 
-    render_section_header("Subsystem and pressure view", "Balance between performance, risk and operational stress.")
-    lower = st.columns([1.05, 1.0, 0.95], gap="large")
-    with lower[0]:
-        fig_scores = px.bar(score_df, x="Score", y="Subsystem", orientation="h", template="plotly_dark", title="Subsystem scores")
-        fig_scores.update_layout(margin=dict(l=20, r=20, t=50, b=20), height=320, showlegend=False, xaxis_range=[0, 1.05])
-        st.plotly_chart(fig_scores, use_container_width=True, key=chart_key("executive", "subsystem_scores", latest))
-    with lower[1]:
+    charts = st.columns(2)
+    with charts[0]:
+        if not score_df.empty and {"Subsystem", "Score"}.issubset(score_df.columns):
+            fig_scores = px.bar(
+                score_df,
+                x="Subsystem",
+                y="Score",
+                color="Subsystem",
+                template="plotly_dark",
+                title="Subsystem scores",
+            )
+            fig_scores.update_layout(height=320, margin=dict(l=20, r=20, t=50, b=20), showlegend=False)
+            st.plotly_chart(fig_scores, use_container_width=True, key=chart_key("executive", "scores", latest))
+        else:
+            st.info("No subsystem score data available.")
+
+    with charts[1]:
         if not pressure_df.empty and {"Pressure", "Value"}.issubset(pressure_df.columns):
             fig_pressure = px.bar(
                 pressure_df,
@@ -84,11 +113,13 @@ def render_executive_dashboard_tab(df: pd.DataFrame) -> None:
                 template="plotly_dark",
                 title="Pressure ranking",
             )
-            fig_pressure.update_layout(margin=dict(l=20, r=20, t=50, b=20), height=320, showlegend=False)
-            st.plotly_chart(fig_pressure, use_container_width=True, key=chart_key("executive", "pressure_ranking", latest))
+            fig_pressure.update_layout(height=320, margin=dict(l=20, r=20, t=50, b=20), showlegend=False)
+            st.plotly_chart(fig_pressure, use_container_width=True, key=chart_key("executive", "pressure", latest))
         else:
-            st.info("Pressure ranking not available.")
-    with lower[2]:
+            st.info("No pressure ranking data available.")
+
+    bottom = st.columns(2)
+    with bottom[0]:
         if not routes_df.empty and {"Route", "Count"}.issubset(routes_df.columns):
             fig_routes = px.pie(
                 routes_df,
@@ -98,19 +129,30 @@ def render_executive_dashboard_tab(df: pd.DataFrame) -> None:
                 template="plotly_dark",
                 title="Route mix",
             )
-            fig_routes.update_layout(margin=dict(l=20, r=20, t=50, b=20), height=320)
+            fig_routes.update_layout(height=300, margin=dict(l=20, r=20, t=50, b=20))
             st.plotly_chart(fig_routes, use_container_width=True, key=chart_key("executive", "route_mix", latest))
         else:
-            st.info("Route mix not available.")
+            st.info("No route mix data available.")
 
-    render_section_header("Trends and status", "Short executive deltas and current subsystem condition.")
-    bottom = st.columns([1.15, 0.95], gap="large")
-    with bottom[0]:
-        if not trends_df.empty and {"Metric", "Current", "Δ15", "Δ30", "Δ60"}.issubset(trends_df.columns):
-            st.dataframe(trends_df, use_container_width=True, hide_index=True, height=320)
-        else:
-            st.info("Trend summary not available.")
     with bottom[1]:
-        status_rows = subsystem_status_rows(latest)
-        status_df = pd.DataFrame(status_rows)
-        st.dataframe(status_df, use_container_width=True, hide_index=True, height=320)
+        if not trends_long_df.empty and {"Metric", "Window", "Value"}.issubset(trends_long_df.columns):
+            fig_trends = px.line(
+                trends_long_df,
+                x="Window",
+                y="Value",
+                color="Metric",
+                template="plotly_dark",
+                title="Rolling trend deltas",
+                markers=True,
+            )
+            fig_trends.update_layout(height=300, margin=dict(l=20, r=20, t=50, b=20))
+            st.plotly_chart(fig_trends, use_container_width=True, key=chart_key("executive", "trends", latest))
+        else:
+            st.info("No trend data available.")
+
+    status_rows = subsystem_status_rows(latest)
+    status_df = pd.DataFrame(status_rows, columns=["Subsystem", "Status", "Score"])
+    st.dataframe(status_df, use_container_width=True, hide_index=True)
+
+    with st.expander("Trend table", expanded=False):
+        st.dataframe(trends_df, use_container_width=True, hide_index=True)
