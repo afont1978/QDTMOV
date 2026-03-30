@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from mobility_os.ui.charts import make_line
-from mobility_os.ui.components import render_chip_row, render_summary_table
+from mobility_os.ui.components import chart_key, render_chip_row, render_summary_table
 from mobility_os.ui.maps import render_hotspot_summary
 
 
@@ -16,7 +16,6 @@ def _twin_snapshot_fields(snapshot: dict) -> list[tuple[str, object]]:
         if isinstance(v, (int, float, bool)):
             rows.append((k, v))
     return rows[:12]
-
 
 
 def render_twins_tab(df: pd.DataFrame, latest: dict, hotspots_df: pd.DataFrame, snapshots: dict[str, dict], window: int) -> None:
@@ -43,9 +42,17 @@ def render_twins_tab(df: pd.DataFrame, latest: dict, hotspots_df: pd.DataFrame, 
 
     grid = st.columns([1.45, 1.45, 1.0])
     with grid[0]:
-        st.plotly_chart(make_line(live_df, metric_map[twin_sel][0], "Twin trend A"), use_container_width=True)
+        st.plotly_chart(
+            make_line(live_df, metric_map[twin_sel][0], "Twin trend A"),
+            use_container_width=True,
+            key=chart_key("twins", "trend_a", latest, suffix=twin_sel),
+        )
     with grid[1]:
-        st.plotly_chart(make_line(live_df, metric_map[twin_sel][1], "Twin trend B"), use_container_width=True)
+        st.plotly_chart(
+            make_line(live_df, metric_map[twin_sel][1], "Twin trend B"),
+            use_container_width=True,
+            key=chart_key("twins", "trend_b", latest, suffix=twin_sel),
+        )
     with grid[2]:
         render_hotspot_summary(md.get("hotspot_name") or latest.get("primary_hotspot_name"), hotspots_df, md.get("scenario_note") or latest.get("scenario_note"), title="Twin hotspot")
         render_chip_row([

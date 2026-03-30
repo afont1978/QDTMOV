@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from mobility_os.ui.charts import make_line
-from mobility_os.ui.components import render_chip_row, render_summary_table
+from mobility_os.ui.components import chart_key, render_chip_row, render_summary_table
 from mobility_os.ui.maps import render_hotspot_summary
 
 
@@ -44,11 +44,23 @@ def render_audit_tab(df: pd.DataFrame, hotspots_df: pd.DataFrame) -> None:
 
     g1, g2, g3 = st.columns(3)
     with g1:
-        st.plotly_chart(make_line(window_df, ["network_speed_index", "corridor_reliability_index"], "Local urban performance"), use_container_width=True)
+        st.plotly_chart(
+            make_line(window_df, ["network_speed_index", "corridor_reliability_index"], "Local urban performance"),
+            use_container_width=True,
+            key=chart_key("audit", "urban_performance", row),
+        )
     with g2:
-        st.plotly_chart(make_line(window_df, ["risk_score", "near_miss_index", "pedestrian_exposure"], "Local risk window"), use_container_width=True)
+        st.plotly_chart(
+            make_line(window_df, ["risk_score", "near_miss_index", "pedestrian_exposure"], "Local risk window"),
+            use_container_width=True,
+            key=chart_key("audit", "risk_window", row),
+        )
     with g3:
-        st.plotly_chart(make_line(window_df, ["bus_bunching_index", "curb_occupancy_rate", "gateway_delay_index"], "Operational pressure window"), use_container_width=True)
+        st.plotly_chart(
+            make_line(window_df, ["bus_bunching_index", "curb_occupancy_rate", "gateway_delay_index"], "Operational pressure window"),
+            use_container_width=True,
+            key=chart_key("audit", "pressure_window", row),
+        )
 
     details = st.columns([1.05, 1.05, 0.9])
     with details[0]:

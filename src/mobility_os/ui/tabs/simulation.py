@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from mobility_os.ui.charts import make_delta_bar, make_scatter_compare
-from mobility_os.ui.components import render_summary_table
+from mobility_os.ui.components import chart_key, render_summary_table
 from mobility_os.ui.maps import render_hotspot_summary
 from mobility_os.ui.simulation import metric_delta_rows, project_what_if
 
@@ -72,9 +72,17 @@ def render_simulation_tab(df: pd.DataFrame, latest: dict, hotspots_df: pd.DataFr
 
         g1, g2 = st.columns(2)
         with g1:
-            st.plotly_chart(make_scatter_compare(latest, projected, ["step_operational_score", "network_speed_index", "risk_score", "bus_bunching_index"], "Scenario comparison"), use_container_width=True)
+            st.plotly_chart(
+                make_scatter_compare(latest, projected, ["step_operational_score", "network_speed_index", "risk_score", "bus_bunching_index"], "Scenario comparison"),
+                use_container_width=True,
+                key=chart_key("simulation", "scenario_compare", latest),
+            )
         with g2:
-            st.plotly_chart(make_delta_bar(delta_df), use_container_width=True)
+            st.plotly_chart(
+                make_delta_bar(delta_df),
+                use_container_width=True,
+                key=chart_key("simulation", "delta_bar", latest),
+            )
 
         rec_cols = st.columns(2)
         with rec_cols[0]:
