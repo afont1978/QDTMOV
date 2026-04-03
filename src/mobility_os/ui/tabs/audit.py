@@ -7,7 +7,7 @@ import pandas as pd
 import streamlit as st
 
 from mobility_os.ui.charts import make_line
-from mobility_os.ui.components import chart_key, render_chip_row, render_section_header, render_summary_table
+from mobility_os.ui.components import chart_key, render_chip_row, render_summary_table
 from mobility_os.ui.maps import render_hotspot_summary
 
 
@@ -35,10 +35,9 @@ def _safe_json_loads(value: Any) -> Any:
 
 
 def render_audit_tab(df: pd.DataFrame, hotspots_df: pd.DataFrame) -> None:
-    render_section_header(
-        "Audit & Orchestration",
-        "Inspect individual execution records, local time windows and technical decision traces.",
-    )
+    st.subheader("Audit & Orchestration")
+    st.caption("Inspect individual execution records, local time windows and technical decision traces.")
+
     if df.empty:
         st.info("No records yet.")
         return
@@ -138,7 +137,12 @@ def render_audit_tab(df: pd.DataFrame, hotspots_df: pd.DataFrame) -> None:
             ("Latency breach", bool(row.get("latency_breach", False))),
         ], "Decision")
 
-    render_hotspot_summary(row.get("primary_hotspot_name"), hotspots_df, row.get("scenario_note"), title="Audit hotspot")
+    render_hotspot_summary(
+        row.get("primary_hotspot_name"),
+        hotspots_df,
+        row.get("scenario_note"),
+        title="Audit hotspot",
+    )
 
     with st.expander("Technical detail"):
         tech_cols = st.columns(2)
