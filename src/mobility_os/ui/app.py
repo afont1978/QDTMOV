@@ -79,6 +79,57 @@ def _get_prev(df):
     return df.iloc[-2].to_dict()
 
 
+def _tone_from_threshold(value: float, good_max: float, warn_max: float) -> tuple[str, str]:
+    if value <= good_max:
+        return "GREEN", "#22c55e"
+    if value <= warn_max:
+        return "AMBER", "#f59e0b"
+    return "RED", "#ef4444"
+
+
+def _tone_from_inverse_threshold(value: float, good_min: float, warn_min: float) -> tuple[str, str]:
+    if value >= good_min:
+        return "GREEN", "#22c55e"
+    if value >= warn_min:
+        return "AMBER", "#f59e0b"
+    return "RED", "#ef4444"
+
+
+def _chip(label: str, value: str, color: str) -> str:
+    return (
+        f'<span style="display:inline-block;padding:0.28rem 0.62rem;margin:0 0.35rem 0.35rem 0;'
+        f'border-radius:999px;background:{color}22;border:1px solid {color}66;color:#e5eef8;'
+        f'font-size:0.78rem;font-weight:600;">{label}: {value}</span>'
+    )
+
+
+def _render_semantic_status(latest: dict) -> None:
+    try:
+        risk = float(latest.get("risk_score", 0.0) or 0.0)
+        bunching = float(latest.get("bus_bunching_index", 0.0) or 0.0)
+        gateway = float(latest.get("gateway_delay_index", 0.0) or 0.0)
+        speed = float(latest.get("network_speed_index", 0.0) or 0.0)
+        score = float(latest.get("step_operational_score", 0.0) or 0.0)
+    except Exception:
+        risk = bunching = gateway = 0.0
+        speed = score = 0.0
+
+    risk_lbl, risk_color = _tone_from_threshold(risk, 0.35, 0.60)
+    bunch_lbl, bunch_color = _tone_from_threshold(bunching, 0.22, 0.42)
+    gateway_lbl, gateway_color = _tone_from_threshold(gateway, 0.30, 0.55)
+    speed_lbl, speed_color = _tone_from_inverse_threshold(speed, 0.85, 0.65)
+    score_lbl, score_color = _tone_from_inverse_threshold(score, 0.70, 0.50)
+
+    html = "".join([
+        _chip("Network", speed_lbl, speed_color),
+        _chip("Transit", bunch_lbl, bunch_color),
+        _chip("Risk", risk_lbl, risk_color),
+        _chip("Gateway", gateway_lbl, gateway_color),
+        _chip("Ops score", score_lbl, score_color),
+    ])
+    st.markdown(html, unsafe_allow_html=True)
+
+
 def _kpi_rows(latest: dict, prev: dict) -> tuple[list[tuple], list[tuple]]:
     row1 = [
         (
@@ -249,6 +300,8 @@ def render_app() -> None:
         info_cols[2].metric("Hotspot", focus_name or latest.get("primary_hotspot_name", "—") or "—")
         info_cols[3].metric("Step", int(latest.get("step_id", 0) or 0))
         info_cols[4].metric("Fallback", "Yes" if latest.get("fallback_triggered", False) else "No")
+
+        _render_semantic_status(latest)
 
         row1, row2 = _kpi_rows(latest, prev)
         render_kpi_row(row1)
