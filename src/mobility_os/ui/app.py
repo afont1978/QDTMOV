@@ -44,6 +44,100 @@ def _rebuild() -> None:
     st.session_state["running"] = False
 
 
+def _delta(current: float | int | None, previous: float | int | None, higher_is_better: bool = True) -> str:
+    if current is None or previous is None:
+        return "—"
+    try:
+        c = float(current)
+        p = float(previous)
+    except Exception:
+        return "—"
+    d = c - p
+    if abs(d) < 1e-9:
+        arrow = "→"
+    else:
+        improving = d > 0 if higher_is_better else d < 0
+        arrow = "↑" if improving else "↓"
+    return f"{arrow} {d:+.03f}"
+
+
+def _bar(value: float | int | None, max_value: float = 1.0, width: int = 8) -> str:
+    try:
+        v = float(value)
+    except Exception:
+        return "—"
+    if max_value <= 0:
+        max_value = 1.0
+    ratio = max(0.0, min(v / max_value, 1.0))
+    filled = int(round(ratio * width))
+    return "█" * filled + "░" * (width - filled)
+
+
+def _get_prev(df):
+    if len(df) < 2:
+        return {}
+    return df.iloc[-2].to_dict()
+
+
+def _kpi_rows(latest: dict, prev: dict) -> tuple[list[tuple], list[tuple]]:
+    row1 = [
+        (
+            "Network speed",
+            f"{float(latest.get('network_speed_index', 0.0) or 0.0):.2f}",
+            f"{_delta(latest.get('network_speed_index'), prev.get('network_speed_index'), True)}  {_bar(latest.get('network_speed_index'), 1.2)}",
+        ),
+        (
+            "Reliability",
+            f"{float(latest.get('corridor_reliability_index', 0.0) or 0.0):.2f}",
+            f"{_delta(latest.get('corridor_reliability_index'), prev.get('corridor_reliability_index'), True)}  {_bar(latest.get('corridor_reliability_index'), 1.2)}",
+        ),
+        (
+            "Bus bunching",
+            f"{float(latest.get('bus_bunching_index', 0.0) or 0.0):.2f}",
+            f"{_delta(latest.get('bus_bunching_index'), prev.get('bus_bunching_index'), False)}  {_bar(latest.get('bus_bunching_index'), 1.0)}",
+        ),
+        (
+            "Risk",
+            f"{float(latest.get('risk_score', 0.0) or 0.0):.2f}",
+            f"{_delta(latest.get('risk_score'), prev.get('risk_score'), False)}  {_bar(latest.get('risk_score'), 1.0)}",
+        ),
+        (
+            "Gateway delay",
+            f"{float(latest.get('gateway_delay_index', 0.0) or 0.0):.2f}",
+            f"{_delta(latest.get('gateway_delay_index'), prev.get('gateway_delay_index'), False)}  {_bar(latest.get('gateway_delay_index'), 1.0)}",
+        ),
+    ]
+
+    row2 = [
+        (
+            "Operational score",
+            f"{float(latest.get('step_operational_score', 0.0) or 0.0):.3f}",
+            f"{_delta(latest.get('step_operational_score'), prev.get('step_operational_score'), True)}  {_bar(latest.get('step_operational_score'), 1.0)}",
+        ),
+        (
+            "Curb occupancy",
+            f"{float(latest.get('curb_occupancy_rate', 0.0) or 0.0):.2f}",
+            f"{_delta(latest.get('curb_occupancy_rate'), prev.get('curb_occupancy_rate'), False)}  {_bar(latest.get('curb_occupancy_rate'), 1.0)}",
+        ),
+        (
+            "Near-miss",
+            f"{float(latest.get('near_miss_index', 0.0) or 0.0):.2f}",
+            f"{_delta(latest.get('near_miss_index'), prev.get('near_miss_index'), False)}  {_bar(latest.get('near_miss_index'), 1.0)}",
+        ),
+        (
+            "Latency (ms)",
+            f"{int(latest.get('exec_ms', 0) or 0)}",
+            f"{_delta(latest.get('exec_ms'), prev.get('exec_ms'), False)}",
+        ),
+        (
+            "Confidence",
+            f"{float(latest.get('decision_confidence', 0.0) or 0.0) * 100:.1f}%",
+            f"{_delta(float(latest.get('decision_confidence', 0.0) or 0.0) * 100.0, float(prev.get('decision_confidence', 0.0) or 0.0) * 100.0, True)}",
+        ),
+    ]
+    return row1, row2
+
+
 def render_app() -> None:
     st.set_page_config(page_title="Barcelona Mobility Control Room", layout="wide")
 
@@ -140,6 +234,7 @@ def render_app() -> None:
 
         df = st.session_state["rt"].dataframe()
         latest = {} if df.empty else df.iloc[-1].to_dict()
+        prev = _get_prev(df)
         current_scenario = st.session_state["scenario"]
         spec = scenarios[current_scenario]
         focus_name = selected_hotspot_name(
@@ -147,13 +242,17 @@ def render_app() -> None:
             st.session_state.get("focus_hotspot_mode", "Auto (scenario hotspot)"),
         )
 
-        render_kpi_row([
-            ("Route", latest.get("decision_route", "—")),
-            ("Network speed", f'{latest.get("network_speed_index", 0):.2f}'),
-            ("Bus bunching", f'{latest.get("bus_bunching_index", 0):.2f}'),
-            ("Risk", f'{latest.get("risk_score", 0):.2f}'),
-            ("Gateway delay", f'{latest.get("gateway_delay_index", 0):.2f}'),
-        ])
+        st.subheader("Live monitor")
+        info_cols = st.columns(5)
+        info_cols[0].metric("Route", latest.get("decision_route", "—"))
+        info_cols[1].metric("Event", latest.get("active_event", "none") or "none")
+        info_cols[2].metric("Hotspot", focus_name or latest.get("primary_hotspot_name", "—") or "—")
+        info_cols[3].metric("Step", int(latest.get("step_id", 0) or 0))
+        info_cols[4].metric("Fallback", "Yes" if latest.get("fallback_triggered", False) else "No")
+
+        row1, row2 = _kpi_rows(latest, prev)
+        render_kpi_row(row1)
+        render_kpi_row(row2)
 
         tabs = st.tabs([
             "Overview",
