@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import streamlit as st
 
 from mobility_os.runtime.runtime import MobilityRuntime
@@ -73,6 +74,42 @@ def _bar(value: float | int | None, max_value: float = 1.0, width: int = 8) -> s
     return "█" * filled + "░" * (width - filled)
 
 
+def _sparkline(values: list[float | int | None]) -> str:
+    chars = "▁▂▃▄▅▆▇█"
+    seq: list[float] = []
+    for v in values:
+        try:
+            fv = float(v)
+            if not math.isnan(fv):
+                seq.append(fv)
+        except Exception:
+            pass
+    if not seq:
+        return "—"
+    lo, hi = min(seq), max(seq)
+    if abs(hi - lo) < 1e-12:
+        return chars[3] * min(len(seq), 10)
+    out = []
+    for v in seq[-10:]:
+        idx = int(round((v - lo) / (hi - lo) * (len(chars) - 1)))
+        idx = max(0, min(idx, len(chars) - 1))
+        out.append(chars[idx])
+    return "".join(out)
+
+
+def _history(df, column: str, n: int = 10) -> list[float]:
+    if column not in df.columns or df.empty:
+        return []
+    vals = df[column].tail(n).tolist()
+    out = []
+    for v in vals:
+        try:
+            out.append(float(v))
+        except Exception:
+            pass
+    return out
+
+
 def _get_prev(df):
     if len(df) < 2:
         return {}
@@ -130,63 +167,61 @@ def _render_semantic_status(latest: dict) -> None:
     st.markdown(html, unsafe_allow_html=True)
 
 
-def _kpi_rows(latest: dict, prev: dict) -> tuple[list[tuple], list[tuple]]:
-    row1 = [
+def _group_rows(df, latest: dict, prev: dict) -> tuple[list[tuple], list[tuple], list[tuple]]:
+    performance = [
         (
             "Network speed",
             f"{float(latest.get('network_speed_index', 0.0) or 0.0):.2f}",
-            f"{_delta(latest.get('network_speed_index'), prev.get('network_speed_index'), True)}  {_bar(latest.get('network_speed_index'), 1.2)}",
+            f"{_delta(latest.get('network_speed_index'), prev.get('network_speed_index'), True)}  {_sparkline(_history(df, 'network_speed_index'))}",
         ),
         (
             "Reliability",
             f"{float(latest.get('corridor_reliability_index', 0.0) or 0.0):.2f}",
-            f"{_delta(latest.get('corridor_reliability_index'), prev.get('corridor_reliability_index'), True)}  {_bar(latest.get('corridor_reliability_index'), 1.2)}",
+            f"{_delta(latest.get('corridor_reliability_index'), prev.get('corridor_reliability_index'), True)}  {_sparkline(_history(df, 'corridor_reliability_index'))}",
         ),
-        (
-            "Bus bunching",
-            f"{float(latest.get('bus_bunching_index', 0.0) or 0.0):.2f}",
-            f"{_delta(latest.get('bus_bunching_index'), prev.get('bus_bunching_index'), False)}  {_bar(latest.get('bus_bunching_index'), 1.0)}",
-        ),
-        (
-            "Risk",
-            f"{float(latest.get('risk_score', 0.0) or 0.0):.2f}",
-            f"{_delta(latest.get('risk_score'), prev.get('risk_score'), False)}  {_bar(latest.get('risk_score'), 1.0)}",
-        ),
-        (
-            "Gateway delay",
-            f"{float(latest.get('gateway_delay_index', 0.0) or 0.0):.2f}",
-            f"{_delta(latest.get('gateway_delay_index'), prev.get('gateway_delay_index'), False)}  {_bar(latest.get('gateway_delay_index'), 1.0)}",
-        ),
-    ]
-
-    row2 = [
         (
             "Operational score",
             f"{float(latest.get('step_operational_score', 0.0) or 0.0):.3f}",
             f"{_delta(latest.get('step_operational_score'), prev.get('step_operational_score'), True)}  {_bar(latest.get('step_operational_score'), 1.0)}",
         ),
+    ]
+
+    risk_safety = [
         (
-            "Curb occupancy",
-            f"{float(latest.get('curb_occupancy_rate', 0.0) or 0.0):.2f}",
-            f"{_delta(latest.get('curb_occupancy_rate'), prev.get('curb_occupancy_rate'), False)}  {_bar(latest.get('curb_occupancy_rate'), 1.0)}",
+            "Bus bunching",
+            f"{float(latest.get('bus_bunching_index', 0.0) or 0.0):.2f}",
+            f"{_delta(latest.get('bus_bunching_index'), prev.get('bus_bunching_index'), False)}  {_sparkline(_history(df, 'bus_bunching_index'))}",
+        ),
+        (
+            "Risk",
+            f"{float(latest.get('risk_score', 0.0) or 0.0):.2f}",
+            f"{_delta(latest.get('risk_score'), prev.get('risk_score'), False)}  {_sparkline(_history(df, 'risk_score'))}",
         ),
         (
             "Near-miss",
             f"{float(latest.get('near_miss_index', 0.0) or 0.0):.2f}",
-            f"{_delta(latest.get('near_miss_index'), prev.get('near_miss_index'), False)}  {_bar(latest.get('near_miss_index'), 1.0)}",
+            f"{_delta(latest.get('near_miss_index'), prev.get('near_miss_index'), False)}  {_sparkline(_history(df, 'near_miss_index'))}",
+        ),
+    ]
+
+    access_control = [
+        (
+            "Gateway delay",
+            f"{float(latest.get('gateway_delay_index', 0.0) or 0.0):.2f}",
+            f"{_delta(latest.get('gateway_delay_index'), prev.get('gateway_delay_index'), False)}  {_sparkline(_history(df, 'gateway_delay_index'))}",
         ),
         (
-            "Latency (ms)",
-            f"{int(latest.get('exec_ms', 0) or 0)}",
-            f"{_delta(latest.get('exec_ms'), prev.get('exec_ms'), False)}",
+            "Curb occupancy",
+            f"{float(latest.get('curb_occupancy_rate', 0.0) or 0.0):.2f}",
+            f"{_delta(latest.get('curb_occupancy_rate'), prev.get('curb_occupancy_rate'), False)}  {_sparkline(_history(df, 'curb_occupancy_rate'))}",
         ),
         (
             "Confidence",
             f"{float(latest.get('decision_confidence', 0.0) or 0.0) * 100:.1f}%",
-            f"{_delta(float(latest.get('decision_confidence', 0.0) or 0.0) * 100.0, float(prev.get('decision_confidence', 0.0) or 0.0) * 100.0, True)}",
+            f"{_delta(float(latest.get('decision_confidence', 0.0) or 0.0) * 100.0, float(prev.get('decision_confidence', 0.0) or 0.0) * 100.0, True)}  {_bar(float(latest.get('decision_confidence', 0.0) or 0.0), 1.0)}",
         ),
     ]
-    return row1, row2
+    return performance, risk_safety, access_control
 
 
 def render_app() -> None:
@@ -303,9 +338,14 @@ def render_app() -> None:
 
         _render_semantic_status(latest)
 
-        row1, row2 = _kpi_rows(latest, prev)
-        render_kpi_row(row1)
-        render_kpi_row(row2)
+        perf, safety, access = _group_rows(df, latest, prev)
+
+        st.caption("Performance")
+        render_kpi_row(perf)
+        st.caption("Risk & Safety")
+        render_kpi_row(safety)
+        st.caption("Access & Control")
+        render_kpi_row(access)
 
         tabs = st.tabs([
             "Overview",
